@@ -1,8 +1,7 @@
 # Copyright (c) 2023 Qualcomm Technologies, Inc.
 # All rights reserved.
-from typing import Optional
-
 import torch
+from torch import Tensor
 
 from gatr.interface.translation import embed_translation
 from gatr.primitives.bilinear import geometric_product
@@ -22,10 +21,10 @@ def embed_oriented_plane(gp,
 
     Parameters
     ----------
-    position : torch.Tensor with shape (..., 3) or None
-        One position on the plane. If None, the plane goes through the origin.
     normal : torch.Tensor with shape (..., 3)
         Normal to the plane.
+    position : torch.Tensor with shape (..., 3)
+        One position on the plane.
 
     Returns
     -------
@@ -44,8 +43,8 @@ def embed_oriented_plane(gp,
     if position is not None:
         translation = embed_translation(position)
         inverse_translation = embed_translation(-position)
-        multivector = geometric_product(gp, 
-            geometric_product(gp, translation, multivector), inverse_translation
+        multivector = geometric_product(
+            geometric_product(translation, multivector), inverse_translation
         )
 
     return multivector

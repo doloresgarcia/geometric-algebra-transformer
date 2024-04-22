@@ -8,6 +8,7 @@ import torch
 from torch import nn
 from gatr.primitives.bilinear import outer_product
 from gatr.utils.einsum import cached_einsum
+from gatr.utils.misc import minimum_autocast_precision
 
 # Flag which reference join implementations we're using
 _USE_EFFICIENT_JOIN = True
@@ -264,6 +265,7 @@ def efficient_equivariant_join(
     )
 
 
+@minimum_autocast_precision(torch.float32)
 def join_norm(
     x: torch.Tensor,
     y: torch.Tensor,

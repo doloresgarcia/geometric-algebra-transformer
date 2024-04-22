@@ -8,7 +8,7 @@ import torch
 from torch import nn
 
 from gatr.layers.attention.config import SelfAttentionConfig
-from src.gatr.primitives.attention import geometric_attention, lin_square_normalizer
+from gatr.primitives.attention import geometric_attention, lin_square_normalizer
 
 
 class GeometricAttention(nn.Module):
@@ -35,16 +35,13 @@ class GeometricAttention(nn.Module):
         Attention configuration.
     """
 
-    def __init__(self, basis_q, basis_k, config: SelfAttentionConfig) -> None:
+    def __init__(self, config: SelfAttentionConfig) -> None:
         super().__init__()
 
-        self.normalizer = partial(_lin_square_normalizer, epsilon=config.normalizer_eps)
+        self.normalizer = partial(lin_square_normalizer, epsilon=config.normalizer_eps)
         self.log_weights = nn.Parameter(
             torch.zeros((config.num_heads, 1, config.hidden_mv_channels))
         )
-        self.basis_k = basis_k
-        self.basis_q = basis_q
-        self.geometric_attention = geometric_attention(basis_k, basis_q)
 
     def forward(self, q_mv, k_mv, v_mv, q_s, k_s, v_s, attention_mask=None):
         """Forward pass through geometric attention.
@@ -80,7 +77,7 @@ class GeometricAttention(nn.Module):
         """
 
         weights = self.log_weights.exp()
-        h_mv, h_s = self.geometric_attention(
+        h_mv, h_s = geometric_attention(
             q_mv,
             k_mv,
             v_mv,

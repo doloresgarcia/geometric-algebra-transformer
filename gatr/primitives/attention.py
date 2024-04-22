@@ -15,6 +15,7 @@ from xformers.ops import AttentionBias, memory_efficient_attention
 from gatr.primitives.dual import join_norm
 from gatr.primitives.invariants import inner_product
 from gatr.utils.einsum import cached_einsum
+from gatr.utils.misc import minimum_autocast_precision
 from gatr.utils.tensors import expand_pairwise, to_nd
 
 # When computing the normalization factor in attention weights, multivectors contribute with the
@@ -275,7 +276,7 @@ def _build_dist_vec(
     return vec
 
 
-def lin_square_normalizer(v: Tensor, epsilon=0.001) -> Tensor:
+def _lin_square_normalizer(v: Tensor, epsilon=0.001) -> Tensor:
     """Apply linear square normalization to the input tensor.
 
     Parameters
