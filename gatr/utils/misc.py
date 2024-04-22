@@ -94,7 +94,7 @@ def sample_log_uniform(min_, max_, size):
     return x
 
 
-@lru_cache()
+# @lru_cache()
 @torch.no_grad()
 def make_full_edge_index(num_nodes, batchsize=1, self_loops=False, device=torch.device("cpu")):
     """Creates a PyG-style edge index for a fully connected graph of `num_nodes` nodes."""
