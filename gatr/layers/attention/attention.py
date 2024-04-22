@@ -7,7 +7,7 @@ from functools import partial
 import torch
 from torch import nn
 
-from gatr.layers.attention.config import SelfAttentionConfig
+from src.gatr.layers.attention.config import SelfAttentionConfig
 from src.gatr.primitives.attention import geometric_attention, lin_square_normalizer
 
 
