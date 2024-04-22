@@ -2,11 +2,11 @@
 # All rights reserved.
 import torch
 
-from gatr.primitives.invariants import inner_product
+from src.gatr.primitives.invariants import inner_product
 
 
 def equi_layer_norm(
-    x: torch.Tensor, channel_dim: int = -2, gain: float = 1.0, epsilon: float = 0.01
+    gp, x: torch.Tensor, channel_dim: int = -2, gain: float = 1.0, epsilon: float = 0.01
 ) -> torch.Tensor:
     """Equivariant LayerNorm for multivectors.
 
@@ -36,7 +36,7 @@ def equi_layer_norm(
     """
 
     # Compute mean_channels |inputs|^2
-    squared_norms = inner_product(x, x)
+    squared_norms = inner_product(gp, x, x)
     squared_norms = torch.mean(squared_norms, dim=channel_dim, keepdim=True)
 
     # Insure against low-norm tensors (which can arise even when `x.var(dim=-1)` is high b/c some

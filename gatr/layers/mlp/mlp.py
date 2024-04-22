@@ -8,10 +8,10 @@ import torch
 from torch import nn
 
 from gatr.layers.dropout import GradeDropout
-from gatr.layers.linear import EquiLinear
+from src.gatr.layers.linear import EquiLinear
 from gatr.layers.mlp.config import MLPConfig
-from gatr.layers.mlp.geometric_bilinears import GeometricBilinear
-from gatr.layers.mlp.nonlinearities import ScalarGatedNonlinearity
+from src.gatr.layers.mlp.geometric_bilinears import GeometricBilinear
+from src.gatr.layers.mlp.nonlinearities import ScalarGatedNonlinearity
 
 
 class GeoMLP(nn.Module):
@@ -30,18 +30,19 @@ class GeoMLP(nn.Module):
         Configuration object
     """
 
-    def __init__(
-        self,
-        config: MLPConfig,
-    ) -> None:
+    def __init__(self, basis_pin, config: MLPConfig, gp, outer) -> None:
         super().__init__()
 
         # Store settings
         self.config = config
-
+        self.basis_pin = basis_pin
+        self.gp = gp
+        self.outer = outer
         assert config.mv_channels is not None
         s_channels = (
-            [None for _ in config.mv_channels] if config.s_channels is None else config.s_channels
+            [None for _ in config.mv_channels]
+            if config.s_channels is None
+            else config.s_channels
         )
 
         layers: List[nn.Module] = []
@@ -49,6 +50,9 @@ class GeoMLP(nn.Module):
         if len(config.mv_channels) >= 2:
             layers.append(
                 GeometricBilinear(
+                    basis_pin=self.basis_pin,
+                    gp=self.gp,
+                    outer=self.outer,
                     in_mv_channels=config.mv_channels[0],
                     out_mv_channels=config.mv_channels[1],
                     in_s_channels=s_channels[0],
@@ -59,17 +63,27 @@ class GeoMLP(nn.Module):
                 layers.append(GradeDropout(config.dropout_prob))
 
             for in_, out, in_s, out_s in zip(
-                config.mv_channels[1:-1], config.mv_channels[2:], s_channels[1:-1], s_channels[2:]
+                config.mv_channels[1:-1],
+                config.mv_channels[2:],
+                s_channels[1:-1],
+                s_channels[2:],
             ):
                 layers.append(ScalarGatedNonlinearity(config.activation))
-                layers.append(EquiLinear(in_, out, in_s_channels=in_s, out_s_channels=out_s))
+                layers.append(
+                    EquiLinear(
+                        basis_pin, in_, out, in_s_channels=in_s, out_s_channels=out_s
+                    )
+                )
                 if config.dropout_prob is not None:
                     layers.append(GradeDropout(config.dropout_prob))
 
         self.layers = nn.ModuleList(layers)
 
     def forward(
-        self, multivectors: torch.Tensor, scalars: torch.Tensor, reference_mv: torch.Tensor
+        self,
+        multivectors: torch.Tensor,
+        scalars: torch.Tensor,
+        reference_mv: torch.Tensor,
     ) -> Tuple[torch.Tensor, Union[torch.Tensor, None]]:
         """Forward pass.
 
@@ -97,5 +111,5 @@ class GeoMLP(nn.Module):
                 mv, s = layer(mv, scalars=s, reference_mv=reference_mv)
             else:
                 mv, s = layer(mv, scalars=s)
-
+                # print(i, mv.shape, s.shape)
         return mv, s

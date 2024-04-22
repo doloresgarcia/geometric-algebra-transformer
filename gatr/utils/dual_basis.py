@@ -63,7 +63,7 @@ def compute_dual_basis():
     return w
 
 
-@lru_cache(5)
+# @lru_cache(5)
 def compute_dual_basis_torch(device):
     """Helper function to construct basis for reference_dual()."""
     w = compute_dual_basis()

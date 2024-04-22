@@ -109,7 +109,7 @@ class ApplyRotaryPositionalEncoding(torch.nn.Module):
             t = torch.arange(inputs.shape[self.item_dim], device=inputs.device).type_as(
                 self.inv_freq
             )
-            freqs = cached_einsum("i,j->ij", t, self.inv_freq)
+            freqs = torch.einsum("i,j->ij", t, self.inv_freq)
             emb = torch.cat((freqs, freqs), dim=-1).to(inputs.device)
 
             self.cos_cached = emb.cos()

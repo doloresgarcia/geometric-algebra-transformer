@@ -31,15 +31,15 @@ def embed_translation(translation_vector: torch.Tensor) -> torch.Tensor:
     """
 
     # Create multivector tensor with same batch shape, same device, same dtype as input
-    batch_shape = translation_vector.shape[:-1]
+    batch_shape = translation_vector.shape[0]
     multivector = torch.zeros(
-        *batch_shape, 16, dtype=translation_vector.dtype, device=translation_vector.device
+        batch_shape, 16, dtype=translation_vector.dtype, device=translation_vector.device
     )
 
     # Embedding into trivectors
-    multivector[..., 0] = 1.0  # scalar
-    multivector[..., 5:8] = (
-        -0.5 * translation_vector[..., :]
+    multivector[:, 0] = 1.0  # scalar
+    multivector[:, 5:8] = (
+        -0.5 * translation_vector[:, :]
     )  # Translation vector embedded in x_0i with i = 1, 2, 3
 
     return multivector

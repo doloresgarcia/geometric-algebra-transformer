@@ -7,7 +7,7 @@ from typing import Tuple
 import torch
 from torch import nn
 
-from gatr.primitives import equi_layer_norm
+from src.gatr.primitives import equi_layer_norm
 
 
 class EquiLayerNorm(nn.Module):
@@ -30,11 +30,11 @@ class EquiLayerNorm(nn.Module):
         issues that arise from some multivector components not contributing to the norm.
     """
 
-    def __init__(self, mv_channel_dim=-2, scalar_channel_dim=-1, epsilon: float = 0.01):
+    def __init__(self, gp,  mv_channel_dim=-2, scalar_channel_dim=-1, epsilon: float = 0.01):
         super().__init__()
         self.mv_channel_dim = mv_channel_dim
         self.epsilon = epsilon
-
+        self.gp = gp
         if scalar_channel_dim != -1:
             raise NotImplementedError(
                 "Currently, only scalar_channel_dim = -1 is implemented, but found"
@@ -62,7 +62,7 @@ class EquiLayerNorm(nn.Module):
         """
 
         outputs_mv = equi_layer_norm(
-            multivectors, channel_dim=self.mv_channel_dim, epsilon=self.epsilon
+            self.gp, multivectors, channel_dim=self.mv_channel_dim, epsilon=self.epsilon
         )
         normalized_shape = scalars.shape[-1:]
         outputs_s = torch.nn.functional.layer_norm(scalars, normalized_shape=normalized_shape)

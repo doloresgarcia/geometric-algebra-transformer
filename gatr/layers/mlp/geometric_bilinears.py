@@ -7,8 +7,8 @@ from typing import Optional, Tuple
 import torch
 from torch import nn
 
-from gatr.layers.linear import EquiLinear
-from gatr.primitives import equivariant_join, geometric_product
+from src.gatr.layers.linear import EquiLinear
+from src.gatr.primitives import equivariant_join, geometric_product
 
 
 class GeometricBilinear(nn.Module):
@@ -33,6 +33,9 @@ class GeometricBilinear(nn.Module):
 
     def __init__(
         self,
+        basis_pin,
+        gp,
+        outer,
         in_mv_channels: int,
         out_mv_channels: int,
         hidden_mv_channels: Optional[int] = None,
@@ -42,6 +45,8 @@ class GeometricBilinear(nn.Module):
         super().__init__()
 
         # Default options
+        self.gp = gp
+        self.outer = outer
         if hidden_mv_channels is None:
             hidden_mv_channels = out_mv_channels
 
@@ -52,12 +57,14 @@ class GeometricBilinear(nn.Module):
 
         # Linear projections for GP
         self.linear_left = EquiLinear(
+            basis_pin,
             in_mv_channels,
             out_mv_channels_each,
             in_s_channels=in_s_channels,
             out_s_channels=None,
         )
         self.linear_right = EquiLinear(
+            basis_pin,
             in_mv_channels,
             out_mv_channels_each,
             in_s_channels=in_s_channels,
@@ -67,16 +74,30 @@ class GeometricBilinear(nn.Module):
 
         # Linear projections for join
         self.linear_join_left = EquiLinear(
-            in_mv_channels, out_mv_channels_each, in_s_channels=in_s_channels, out_s_channels=None
+            basis_pin,
+            in_mv_channels,
+            out_mv_channels_each,
+            in_s_channels=in_s_channels,
+            out_s_channels=None,
         )
         self.linear_join_right = EquiLinear(
-            in_mv_channels, out_mv_channels_each, in_s_channels=in_s_channels, out_s_channels=None
+            basis_pin,
+            in_mv_channels,
+            out_mv_channels_each,
+            in_s_channels=in_s_channels,
+            out_s_channels=None,
         )
 
         # Output linear projection
         self.linear_out = EquiLinear(
-            hidden_mv_channels, out_mv_channels, in_s_channels, out_s_channels
+            basis_pin,
+            hidden_mv_channels,
+            out_mv_channels,
+            in_s_channels,
+            out_s_channels,
         )
+        self.geometric_product = geometric_product(self.gp)
+        self.equivariant_join = equivariant_join(self.outer)
 
     def forward(
         self,
@@ -106,12 +127,12 @@ class GeometricBilinear(nn.Module):
         # GP
         left, _ = self.linear_left(multivectors, scalars=scalars)
         right, _ = self.linear_right(multivectors, scalars=scalars)
-        gp_outputs = geometric_product(left, right)
+        gp_outputs = self.geometric_product(left, right)
 
         # Equivariant join
         left, _ = self.linear_join_left(multivectors, scalars=scalars)
         right, _ = self.linear_join_right(multivectors, scalars=scalars)
-        join_outputs = equivariant_join(left, right, reference_mv)
+        join_outputs = self.equivariant_join(left, right, reference_mv)
 
         # Output linear
         outputs_mv = torch.cat((gp_outputs, join_outputs), dim=-2)

@@ -5,7 +5,7 @@ from itertools import product
 from typing import Tuple
 
 import torch
-
+from torch import nn
 from gatr.primitives.bilinear import outer_product
 from gatr.utils.einsum import cached_einsum
 
@@ -13,7 +13,7 @@ from gatr.utils.einsum import cached_einsum
 _USE_EFFICIENT_JOIN = True
 
 
-@lru_cache()
+# @lru_cache()
 @torch.no_grad()
 def _compute_dualization(
     device=torch.device("cpu"), dtype=torch.float32
@@ -36,14 +36,18 @@ def _compute_dualization(
     """
     permutation = [15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
     factors = torch.tensor(
-        [1, -1, 1, -1, 1, 1, -1, 1, 1, -1, 1, -1, 1, -1, 1, 1], device=device, dtype=dtype
+        [1, -1, 1, -1, 1, 1, -1, 1, 1, -1, 1, -1, 1, -1, 1, 1],
+        device=device,
+        dtype=dtype,
     )
     return permutation, factors
 
 
-@lru_cache()
+# @lru_cache()
 @torch.no_grad()
-def _compute_efficient_join(device=torch.device("cpu"), dtype=torch.float32) -> torch.Tensor:
+def _compute_efficient_join(
+    outer, device=torch.device("cpu"), dtype=torch.float32
+) -> torch.Tensor:
     """Constructs a kernel for the join operation.
 
     The kernel is such that join(x, y)_i = einsum(kernel_ijk, x_j, x_k).
@@ -73,12 +77,12 @@ def _compute_efficient_join(device=torch.device("cpu"), dtype=torch.float32) -> 
             )
             x[i] = 1.0
             y[j] = 1.0
-            kernel[:, i, j] = dual(outer_product(dual(x), dual(y)))
+            kernel[:, i, j] = dual(outer_product(outer, dual(x), dual(y)))
 
     return kernel
 
 
-@lru_cache()
+# @lru_cache()
 @torch.no_grad()
 def _compute_join_norm_idx(threshold=0.5) -> Tuple[list, list, list]:
     """Constructs everything we need to compute norm(equi_norm(x,y)) in a memory-efficient way.
@@ -161,39 +165,49 @@ def dual(x: torch.Tensor) -> torch.Tensor:
     return result
 
 
-def equivariant_join(x: torch.Tensor, y: torch.Tensor, reference: torch.Tensor) -> torch.Tensor:
-    """Computes the equivariant join.
+class equivariant_join(nn.Module):
+    def __init__(self, outer) -> None:
+        super().__init__()
+        self.outer = outer
 
-    ```
-    equivariant_join(x, y; reference) = reference_123 * dual( dual(x) ^ dual(y) )
-    ```
+    def forward(self, x, y, reference):
 
-    This function uses either explicit_equivariant_join or efficient_equivariant_join, depending
-    on whether _USE_EFFICIENT_JOIN is set.
+        return explicit_equivariant_join(self.outer, x, y, reference)
 
-    Parameters
-    ----------
-    x : torch.Tensor
-        Left input multivector.
-    y : torch.Tensor
-        Right input multivector.
-    reference : torch.Tensor
-        Reference multivector to break the orientation ambiguity.
 
-    Returns
-    -------
-    outputs : torch.Tensor
-        Equivariant join result.
-    """
+# def equivariant_join(outer, x: torch.Tensor, y: torch.Tensor, reference: torch.Tensor) -> torch.Tensor:
+#     """Computes the equivariant join.
 
-    if _USE_EFFICIENT_JOIN:
-        return efficient_equivariant_join(x, y, reference)
+#     ```
+#     equivariant_join(x, y; reference) = reference_123 * dual( dual(x) ^ dual(y) )
+#     ```
 
-    return explicit_equivariant_join(x, y, reference)
+#     This function uses either explicit_equivariant_join or efficient_equivariant_join, depending
+#     on whether _USE_EFFICIENT_JOIN is set.
+
+#     Parameters
+#     ----------
+#     x : torch.Tensor
+#         Left input multivector.
+#     y : torch.Tensor
+#         Right input multivector.
+#     reference : torch.Tensor
+#         Reference multivector to break the orientation ambiguity.
+
+#     Returns
+#     -------
+#     outputs : torch.Tensor
+#         Equivariant join result.
+#     """
+
+#     if _USE_EFFICIENT_JOIN:
+#         return efficient_equivariant_join(outer, x, y, reference)
+
+#     return explicit_equivariant_join(outer, x, y, reference)
 
 
 def explicit_equivariant_join(
-    x: torch.Tensor, y: torch.Tensor, reference: torch.Tensor
+    outer, x: torch.Tensor, y: torch.Tensor, reference: torch.Tensor
 ) -> torch.Tensor:
     """Computes the equivariant join, using the explicit, but slow, implementation.
 
@@ -215,11 +229,13 @@ def explicit_equivariant_join(
     outputs : torch.Tensor
         Rquivariant join result.
     """
-    return reference[..., [14]] * dual(outer_product(dual(x), dual(y)))
+    reference = torch.index_select(reference, -1, torch.Tensor([14]).long())
+    # reference[..., [14]]
+    return reference * dual(outer_product(outer, dual(x), dual(y)))
 
 
 def efficient_equivariant_join(
-    x: torch.Tensor, y: torch.Tensor, reference: torch.Tensor
+    outer, x: torch.Tensor, y: torch.Tensor, reference: torch.Tensor
 ) -> torch.Tensor:
     """Computes the equivariant join, using the efficient implementation.
 
@@ -242,12 +258,18 @@ def efficient_equivariant_join(
         Rquivariant join result.
     """
 
-    kernel = _compute_efficient_join(x.device, x.dtype)
-    return reference[..., [14]] * cached_einsum("i j k , ... j, ... k -> ... i", kernel, x, y)
+    kernel = _compute_efficient_join(outer, x.device, x.dtype)
+    return reference[..., [14]] * torch.einsum(
+        "i j k , ... j, ... k -> ... i", kernel, x, y
+    )
 
 
 def join_norm(
-    x: torch.Tensor, y: torch.Tensor, square=False, channel_sum=False, channel_weights=None
+    x: torch.Tensor,
+    y: torch.Tensor,
+    square=False,
+    channel_sum=False,
+    channel_weights=None,
 ) -> torch.Tensor:
     """Computes the norm of the join, `|join(x,y)|`, in a single operation.
 

@@ -6,10 +6,10 @@ from typing import Optional, Tuple
 import torch
 from torch import nn
 
-from gatr.layers import SelfAttention, SelfAttentionConfig
-from gatr.layers.layer_norm import EquiLayerNorm
+from src.gatr.layers import SelfAttention, SelfAttentionConfig
+from src.gatr.layers.layer_norm import EquiLayerNorm
 from gatr.layers.mlp.config import MLPConfig
-from gatr.layers.mlp.mlp import GeoMLP
+from src.gatr.layers.mlp.mlp import GeoMLP
 
 
 class GATrBlock(nn.Module):
@@ -38,6 +38,11 @@ class GATrBlock(nn.Module):
 
     def __init__(
         self,
+        gp,
+        outer,
+        basis_pin,
+        basis_q,
+        basis_k,
         mv_channels: int,
         s_channels: int,
         attention: SelfAttentionConfig,
@@ -48,8 +53,10 @@ class GATrBlock(nn.Module):
 
         # Normalization layer (stateless, so we can use the same layer for both normalization
         # instances)
-        self.norm = EquiLayerNorm()
-
+        self.gp = gp
+        self.outer = outer
+        self.norm = EquiLayerNorm(gp)
+        self.norm2 = EquiLayerNorm(gp)
         # Self-attention layer
         attention = replace(
             attention,
@@ -60,7 +67,7 @@ class GATrBlock(nn.Module):
             output_init="small",
             dropout_prob=dropout_prob,
         )
-        self.attention = SelfAttention(attention)
+        self.attention = SelfAttention(basis_q, basis_k, basis_pin, attention)
 
         # MLP block
         mlp = replace(
@@ -69,7 +76,7 @@ class GATrBlock(nn.Module):
             s_channels=(s_channels, 2 * s_channels, s_channels),
             dropout_prob=dropout_prob,
         )
-        self.mlp = GeoMLP(mlp)
+        self.mlp = GeoMLP(basis_pin, mlp, gp, outer)
 
     def forward(
         self,
@@ -129,7 +136,7 @@ class GATrBlock(nn.Module):
         outputs_s = scalars + h_s
 
         # MLP block: layer norm
-        h_mv, h_s = self.norm(outputs_mv, scalars=outputs_s)
+        h_mv, h_s = self.norm2(outputs_mv, scalars=outputs_s)
 
         # MLP block: MLP
         h_mv, h_s = self.mlp(h_mv, scalars=h_s, reference_mv=reference_mv)

@@ -10,8 +10,8 @@ from gatr.primitives.linear import _compute_reversal, grade_project
 from gatr.utils.einsum import cached_einsum
 
 
-@lru_cache()
-def compute_inner_product_mask(device=torch.device("cpu")) -> torch.Tensor:
+# @lru_cache()
+def compute_inner_product_mask(gp, device=torch.device("cpu")) -> torch.Tensor:
     """Constructs a bool array for the inner product calculation.
 
     The inner product of MVs is <~x y>_0, i.e. take the grade-0 component of the geometric
@@ -32,12 +32,17 @@ def compute_inner_product_mask(device=torch.device("cpu")) -> torch.Tensor:
     ip_mask : torch.Tensor with shape (16,)
         Inner product mask
     """
-    gp = _load_bilinear_basis("gp", device=device, dtype=torch.float32)
-    inner_product_mask = torch.diag(gp[0]) * _compute_reversal(device=device, dtype=torch.float32)
+    # gp = _load_bilinear_basis("gp", device=device, dtype=torch.float32)
+
+    inner_product_mask = torch.diag(gp[0]) * _compute_reversal(
+        device=device, dtype=torch.float32
+    )
     return inner_product_mask.bool()
 
 
-def inner_product(x: torch.Tensor, y: torch.Tensor, channel_sum: bool = False) -> torch.Tensor:
+def inner_product(
+    gp, x: torch.Tensor, y: torch.Tensor, channel_sum: bool = False
+) -> torch.Tensor:
     """Computes the inner product of multivectors f(x,y) = <x, y> = <~x y>_0.
 
     In addition to summing over the 16 multivector dimensions, this function also sums
@@ -60,13 +65,15 @@ def inner_product(x: torch.Tensor, y: torch.Tensor, channel_sum: bool = False) -
         Result. Batch dimensions are result of broadcasting between x and y.
     """
 
-    x = x[..., compute_inner_product_mask(device=x.device)]
-    y = y[..., compute_inner_product_mask(device=x.device)]
+    x = x[..., compute_inner_product_mask(gp, device=x.device)]
+    y = y[..., compute_inner_product_mask(gp, device=x.device)]
 
     if channel_sum:
-        outputs = cached_einsum("... c i, ... c i -> ...", x, y)
+        outputs = torch.sum(torch.sum(torch.mul(x, y), dim=-1), dim=-1)
+        # outputs = torch.einsum("... c i, ... c i -> ...", x, y)
     else:
-        outputs = cached_einsum("... i, ... i -> ...", x, y)
+        outputs = torch.sum(torch.mul(x, y), dim=-1)
+        # outputs = torch.einsum("... i, ... i -> ...", x, y)
 
     # We want the output to have shape (..., 1)
     outputs = outputs.unsqueeze(-1)

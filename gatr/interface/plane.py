@@ -8,7 +8,7 @@ from gatr.interface.translation import embed_translation
 from gatr.primitives.bilinear import geometric_product
 
 
-def embed_oriented_plane(
+def embed_oriented_plane(gp, 
     normal: torch.Tensor, position: Optional[torch.Tensor] = None
 ) -> torch.Tensor:
     """Embeds an (oriented plane) in the PGA.
@@ -44,8 +44,8 @@ def embed_oriented_plane(
     if position is not None:
         translation = embed_translation(position)
         inverse_translation = embed_translation(-position)
-        multivector = geometric_product(
-            geometric_product(translation, multivector), inverse_translation
+        multivector = geometric_product(gp, 
+            geometric_product(gp, translation, multivector), inverse_translation
         )
 
     return multivector

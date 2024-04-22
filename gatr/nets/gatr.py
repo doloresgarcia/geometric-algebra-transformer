@@ -9,10 +9,10 @@ import torch
 from torch import nn
 from torch.utils.checkpoint import checkpoint
 
-from gatr.layers.attention.config import SelfAttentionConfig
-from gatr.layers.gatr_block import GATrBlock
-from gatr.layers.linear import EquiLinear
-from gatr.layers.mlp.config import MLPConfig
+from src.gatr.layers.attention.config import SelfAttentionConfig
+from src.gatr.layers.gatr_block import GATrBlock
+from src.gatr.layers.linear import EquiLinear
+from src.gatr.layers.mlp.config import MLPConfig
 
 
 class GATr(nn.Module):
@@ -62,6 +62,11 @@ class GATr(nn.Module):
         out_s_channels: Optional[int],
         hidden_s_channels: Optional[int],
         attention: SelfAttentionConfig,
+        basis_gp,
+        basis_outer,
+        basis_pin,
+        basis_q, 
+        basis_k, 
         mlp: MLPConfig,
         num_blocks: int = 10,
         reinsert_mv_channels: Optional[Tuple[int]] = None,
@@ -72,8 +77,9 @@ class GATr(nn.Module):
     ) -> None:
         super().__init__()
         self.linear_in = EquiLinear(
-            in_mv_channels,
-            hidden_mv_channels,
+            basis_pin=basis_pin,
+            in_mv_channels=in_mv_channels,
+            out_mv_channels=hidden_mv_channels,
             in_s_channels=in_s_channels,
             out_s_channels=hidden_s_channels,
         )
@@ -82,12 +88,19 @@ class GATr(nn.Module):
             additional_qk_mv_channels=0
             if reinsert_mv_channels is None
             else len(reinsert_mv_channels),
-            additional_qk_s_channels=0 if reinsert_s_channels is None else len(reinsert_s_channels),
+            additional_qk_s_channels=0
+            if reinsert_s_channels is None
+            else len(reinsert_s_channels),
         )
         mlp = MLPConfig.cast(mlp)
         self.blocks = nn.ModuleList(
             [
                 GATrBlock(
+                    gp=basis_gp,
+                    outer=basis_outer,
+                    basis_pin= basis_pin, 
+                    basis_q = basis_q, 
+                    basis_k = basis_k, 
                     mv_channels=hidden_mv_channels,
                     s_channels=hidden_s_channels,
                     attention=attention,
@@ -98,14 +111,16 @@ class GATr(nn.Module):
             ]
         )
         self.linear_out = EquiLinear(
-            hidden_mv_channels,
-            out_mv_channels,
+            basis_pin=basis_pin,
+            in_mv_channels=hidden_mv_channels,
+            out_mv_channels=out_mv_channels,
             in_s_channels=hidden_s_channels,
             out_s_channels=out_s_channels,
         )
         self._reinsert_s_channels = reinsert_s_channels
         self._reinsert_mv_channels = reinsert_mv_channels
         self._checkpoint_blocks = checkpoint_blocks
+        self.basis_pin = basis_pin
 
     def forward(
         self,
@@ -134,33 +149,36 @@ class GATr(nn.Module):
 
         # Reference multivector and channels that will be re-inserted in any query / key computation
         reference_mv = self._construct_dual_reference(multivectors)
-        additional_qk_features_mv, additional_qk_features_s = self._construct_reinserted_channels(
-            multivectors, scalars
-        )
 
+        # (
+        #     additional_qk_features_mv,
+        #     additional_qk_features_s,
+        # ) = self._construct_reinserted_channels(multivectors, scalars)
+        additional_qk_features_mv = None
+        additional_qk_features_s = None
         # Pass through the blocks
         h_mv, h_s = self.linear_in(multivectors, scalars=scalars)
         for block in self.blocks:
-            if self._checkpoint_blocks:
-                h_mv, h_s = checkpoint(
-                    block,
-                    h_mv,
-                    use_reentrant=False,
-                    scalars=h_s,
-                    reference_mv=reference_mv,
-                    additional_qk_features_mv=additional_qk_features_mv,
-                    additional_qk_features_s=additional_qk_features_s,
-                    attention_mask=attention_mask,
-                )
-            else:
-                h_mv, h_s = block(
-                    h_mv,
-                    scalars=h_s,
-                    reference_mv=reference_mv,
-                    additional_qk_features_mv=additional_qk_features_mv,
-                    additional_qk_features_s=additional_qk_features_s,
-                    attention_mask=attention_mask,
-                )
+            # if self._checkpoint_blocks:
+            #     h_mv, h_s = checkpoint(
+            #         block,
+            #         h_mv,
+            #         use_reentrant=False,
+            #         scalars=h_s,
+            #         reference_mv=reference_mv,
+            #         additional_qk_features_mv=additional_qk_features_mv,
+            #         additional_qk_features_s=additional_qk_features_s,
+            #         attention_mask=attention_mask,
+            #     )
+            # else:
+            h_mv, h_s = block(
+                h_mv,
+                scalars=h_s,
+                reference_mv=reference_mv,
+                additional_qk_features_mv=additional_qk_features_mv,
+                additional_qk_features_s=additional_qk_features_s,
+                attention_mask=attention_mask,
+            )
 
         outputs_mv, outputs_s = self.linear_out(h_mv, scalars=h_s)
 
@@ -179,7 +197,7 @@ class GATr(nn.Module):
         else:
             assert scalars is not None
             additional_qk_features_s = scalars[..., self._reinsert_s_channels]
-
+        print("CHECKING THIS", additional_qk_features_mv, additional_qk_features_s)
         return additional_qk_features_mv, additional_qk_features_s
 
     @staticmethod

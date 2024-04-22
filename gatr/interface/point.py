@@ -28,21 +28,25 @@ def embed_point(coordinates: torch.Tensor) -> torch.Tensor:
     """
 
     # Create multivector tensor with same batch shape, same device, same dtype as input
-    batch_shape = coordinates.shape[:-1]
-    multivector = torch.zeros(*batch_shape, 16, dtype=coordinates.dtype, device=coordinates.device)
+    batch_shape = coordinates.shape[0]
+    multivector = torch.zeros(
+        batch_shape, 16, dtype=coordinates.dtype, device=coordinates.device
+    )
 
     # Embedding into trivectors
     # Homogeneous coordinates: unphysical component / embedding dim, x_123
-    multivector[..., 14] = 1.0
-    multivector[..., 13] = -coordinates[..., 0]  # x-coordinate embedded in x_023
-    multivector[..., 12] = coordinates[..., 1]  # y-coordinate embedded in x_013
-    multivector[..., 11] = -coordinates[..., 2]  # z-coordinate embedded in x_012
+    multivector[:, 14] = 1.0
+    multivector[:, 13] = -coordinates[:, 0]  # x-coordinate embedded in x_023
+    multivector[:, 12] = coordinates[:, 1]  # y-coordinate embedded in x_013
+    multivector[:, 11] = -coordinates[:, 2]  # z-coordinate embedded in x_012
 
     return multivector
 
 
 def extract_point(
-    multivector: torch.Tensor, divide_by_embedding_dim: bool = True, threshold: float = 1e-3
+    multivector: torch.Tensor,
+    divide_by_embedding_dim: bool = True,
+    threshold: float = 1e-3,
 ) -> torch.Tensor:
     """Given a multivector, extract any potential 3D point from the trivector components.
 
@@ -69,7 +73,8 @@ def extract_point(
     """
 
     coordinates = torch.cat(
-        [-multivector[..., [13]], multivector[..., [12]], -multivector[..., [11]]], dim=-1
+        [-multivector[..., [13]], multivector[..., [12]], -multivector[..., [11]]],
+        dim=-1,
     )
 
     # Divide by embedding dim
@@ -77,7 +82,9 @@ def extract_point(
         embedding_dim = multivector[
             ..., [14]
         ]  # Embedding dimension / scale of homogeneous coordinates
-        embedding_dim = torch.where(torch.abs(embedding_dim) > threshold, embedding_dim, threshold)
+        embedding_dim = torch.where(
+            torch.abs(embedding_dim) > threshold, embedding_dim, threshold
+        )
         coordinates = coordinates / embedding_dim
 
     return coordinates

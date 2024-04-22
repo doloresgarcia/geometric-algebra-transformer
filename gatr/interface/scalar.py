@@ -18,7 +18,7 @@ def embed_scalar(scalars: torch.Tensor) -> torch.Tensor:
         are zero.
     """
 
-    non_scalar_shape = list(scalars.shape[:-1]) + [15]
+    non_scalar_shape = list([scalars.shape[0]]) + [15]
     non_scalar_components = torch.zeros(
         non_scalar_shape, device=scalars.device, dtype=scalars.dtype
     )

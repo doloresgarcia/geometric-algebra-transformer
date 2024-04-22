@@ -8,12 +8,12 @@ import torch
 from einops import rearrange
 from torch import nn
 
-from gatr.layers.attention.attention import GeometricAttention
+from src.gatr.layers.attention.attention import GeometricAttention
 from gatr.layers.attention.config import SelfAttentionConfig
 from gatr.layers.attention.positional_encoding import ApplyRotaryPositionalEncoding
-from gatr.layers.attention.qkv import MultiQueryQKVModule, QKVModule
+from src.gatr.layers.attention.qkv import MultiQueryQKVModule, QKVModule
 from gatr.layers.dropout import GradeDropout
-from gatr.layers.linear import EquiLinear
+from src.gatr.layers.linear import EquiLinear
 
 
 class SelfAttention(nn.Module):
@@ -27,17 +27,22 @@ class SelfAttention(nn.Module):
         Attention configuration.
     """
 
-    def __init__(self, config: SelfAttentionConfig) -> None:
+    def __init__(self, basis_q, basis_k, basis_pin, config: SelfAttentionConfig) -> None:
         super().__init__()
 
         # Store settings
         self.config = config
-
+        self.basis_pin = basis_pin
         # QKV computation
-        self.qkv_module = MultiQueryQKVModule(config) if config.multi_query else QKVModule(config)
+        self.qkv_module = (
+            MultiQueryQKVModule(self.basis_pin, config)
+            if config.multi_query
+            else QKVModule(self.basis_pin, config)
+        )
 
         # Output projection
         self.out_linear = EquiLinear(
+            basis_pin=self.basis_pin,
             in_mv_channels=config.hidden_mv_channels * config.num_heads,
             out_mv_channels=config.out_mv_channels,
             in_s_channels=None
@@ -57,7 +62,7 @@ class SelfAttention(nn.Module):
             self.pos_encoding = nn.Identity()
 
         # Attention
-        self.attention = GeometricAttention(config)
+        self.attention = GeometricAttention(basis_q, basis_k, config)
 
         # Dropout
         self.dropout: Optional[nn.Module]
@@ -118,22 +123,25 @@ class SelfAttention(nn.Module):
         q_mv, k_mv, v_mv, q_s, k_s, v_s = self.qkv_module(
             multivectors, scalars, additional_qk_features_mv, additional_qk_features_s
         )
-
         # Rotary positional encoding
         q_s = self.pos_encoding(q_s)
         k_s = self.pos_encoding(k_s)
 
         # Attention layer
-        h_mv, h_s = self.attention(q_mv, k_mv, v_mv, q_s, k_s, v_s, attention_mask=attention_mask)
+        h_mv, h_s = self.attention(
+            q_mv, k_mv, v_mv, q_s, k_s, v_s, attention_mask=attention_mask
+        )
 
         h_mv = rearrange(
-            h_mv, "... n_heads n_items hidden_channels x -> ... n_items (n_heads hidden_channels) x"
+            h_mv,
+            "... n_heads n_items hidden_channels x -> ... n_items (n_heads hidden_channels) x",
         )
         h_s = rearrange(
-            h_s, "... n_heads n_items hidden_channels -> ... n_items (n_heads hidden_channels)"
+            h_s,
+            "... n_heads n_items hidden_channels -> ... n_items (n_heads hidden_channels)",
         )
 
-        # Transform linearly one more time
+        # # Transform linearly one more time
         outputs_mv, outputs_s = self.out_linear(h_mv, scalars=h_s)
 
         # Dropout
