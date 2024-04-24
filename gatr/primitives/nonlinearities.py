@@ -25,9 +25,9 @@ def gated_relu(x: torch.Tensor, gates: torch.Tensor) -> torch.Tensor:
     outputs : torch.Tensor with shape (..., 16)
         Computes ReLU(gates) * x, with broadcasting along the last dimension.
     """
-
     weights = torch.nn.functional.relu(gates)
     outputs = weights * x
+
     return outputs
 
 
@@ -51,7 +51,7 @@ def gated_sigmoid(x: torch.Tensor, gates: torch.Tensor):
     """
 
     weights = torch.nn.functional.sigmoid(gates)
-    outputs = weights * x
+    outputs = torch.mul(weights, x)  # weights * x
     return outputs
 
 

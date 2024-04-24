@@ -6,7 +6,8 @@ from typing import Optional, Tuple
 import torch
 from torch import nn
 
-from src.gatr.layers import SelfAttention, SelfAttentionConfig
+from src.gatr.layers.attention.self_attention import SelfAttention
+from src.gatr.layers.attention.config import SelfAttentionConfig
 from src.gatr.layers.layer_norm import EquiLayerNorm
 from gatr.layers.mlp.config import MLPConfig
 from src.gatr.layers.mlp.mlp import GeoMLP
@@ -118,7 +119,6 @@ class GATrBlock(nn.Module):
         output_scalars : torch.Tensor with shape (..., s_channels)
             Output scalars
         """
-
         # Attention block: layer norm
         h_mv, h_s = self.norm(multivectors, scalars=scalars)
 
@@ -144,5 +144,6 @@ class GATrBlock(nn.Module):
         # MLP block: skip connection
         outputs_mv = outputs_mv + h_mv
         outputs_s = outputs_s + h_s
-
+        # outputs_mv = h_mv
+        # outputs_s = h_s
         return outputs_mv, outputs_s

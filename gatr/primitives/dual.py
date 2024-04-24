@@ -6,9 +6,10 @@ from typing import Tuple
 
 import torch
 from torch import nn
-from gatr.primitives.bilinear import outer_product
+from src.gatr.primitives.bilinear import outer_product
 from gatr.utils.einsum import cached_einsum
-from gatr.utils.misc import minimum_autocast_precision
+
+# from gatr.utils.misc import minimum_autocast_precision
 
 # Flag which reference join implementations we're using
 _USE_EFFICIENT_JOIN = True
@@ -161,7 +162,8 @@ def dual(x: torch.Tensor) -> torch.Tensor:
     perm, factors = _compute_dualization(x.device, x.dtype)
 
     # Compute dual
-    result = factors * x[..., perm]
+    x = torch.index_select(x, -1, torch.Tensor(perm).long())
+    result = factors * x  # x[..., perm]
 
     return result
 
@@ -265,7 +267,7 @@ def efficient_equivariant_join(
     )
 
 
-@minimum_autocast_precision(torch.float32)
+# @minimum_autocast_precision(torch.float32)
 def join_norm(
     x: torch.Tensor,
     y: torch.Tensor,

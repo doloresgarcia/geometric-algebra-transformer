@@ -1,14 +1,15 @@
 # Copyright (c) 2023 Qualcomm Technologies, Inc.
 # All rights reserved.
-from functools import lru_cache
+# from functools import lru_cache
 
 import torch
 import torch.linalg
 
-from gatr.primitives.bilinear import _load_bilinear_basis
-from gatr.primitives.linear import _compute_reversal, grade_project
-from gatr.utils.einsum import cached_einsum
-from gatr.utils.misc import minimum_autocast_precision
+from src.gatr.primitives.bilinear import _load_bilinear_basis
+from src.gatr.primitives.linear import _compute_reversal, grade_project
+from src.gatr.utils.einsum import cached_einsum
+
+# from gatr.utils.misc import minimum_autocast_precision
 
 
 # @lru_cache()
@@ -34,7 +35,6 @@ def compute_inner_product_mask(gp, device=torch.device("cpu")) -> torch.Tensor:
         Inner product mask
     """
     # gp = _load_bilinear_basis("gp", device=device, dtype=torch.float32)
-
     inner_product_mask = torch.diag(gp[0]) * _compute_reversal(
         device=device, dtype=torch.float32
     )
@@ -82,7 +82,7 @@ def inner_product(
     return outputs
 
 
-@minimum_autocast_precision(torch.float32)
+# @minimum_autocast_precision(torch.float32)
 def norm(x: torch.Tensor) -> torch.Tensor:
     """Computes the GA norm of an input multivector.
 

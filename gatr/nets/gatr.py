@@ -65,8 +65,8 @@ class GATr(nn.Module):
         basis_gp,
         basis_outer,
         basis_pin,
-        basis_q, 
-        basis_k, 
+        basis_q,
+        basis_k,
         mlp: MLPConfig,
         num_blocks: int = 10,
         reinsert_mv_channels: Optional[Tuple[int]] = None,
@@ -98,9 +98,9 @@ class GATr(nn.Module):
                 GATrBlock(
                     gp=basis_gp,
                     outer=basis_outer,
-                    basis_pin= basis_pin, 
-                    basis_q = basis_q, 
-                    basis_k = basis_k, 
+                    basis_pin=basis_pin,
+                    basis_q=basis_q,
+                    basis_k=basis_k,
                     mv_channels=hidden_mv_channels,
                     s_channels=hidden_s_channels,
                     attention=attention,
@@ -154,9 +154,10 @@ class GATr(nn.Module):
 
         # Reference multivector and channels that will be re-inserted in any query / key computation
         reference_mv = self._construct_dual_reference(multivectors)
-        additional_qk_features_mv, additional_qk_features_s = self._construct_reinserted_channels(
-            multivectors, scalars
-        )
+        # (
+        #     additional_qk_features_mv,
+        #     additional_qk_features_s,
+        # ) = self._construct_reinserted_channels(multivectors, scalars)
 
         # (
         #     additional_qk_features_mv,
@@ -168,16 +169,17 @@ class GATr(nn.Module):
         h_mv, h_s = self.linear_in(multivectors, scalars=scalars)
         for block in self.blocks:
             # if self._checkpoint_blocks:
-            #     h_mv, h_s = checkpoint(
-            #         block,
-            #         h_mv,
-            #         use_reentrant=False,
-            #         scalars=h_s,
-            #         reference_mv=reference_mv,
-            #         additional_qk_features_mv=additional_qk_features_mv,
-            #         additional_qk_features_s=additional_qk_features_s,
-            #         attention_mask=attention_mask,
-            #     )
+            # print("using checkpoint blocks")
+            # h_mv, h_s = checkpoint(
+            #     block,
+            #     h_mv,
+            #     use_reentrant=False,
+            #     scalars=h_s,
+            #     reference_mv=reference_mv,
+            #     additional_qk_features_mv=additional_qk_features_mv,
+            #     additional_qk_features_s=additional_qk_features_s,
+            #     attention_mask=attention_mask,
+            # )
             # else:
             h_mv, h_s = block(
                 h_mv,
@@ -187,8 +189,9 @@ class GATr(nn.Module):
                 additional_qk_features_s=additional_qk_features_s,
                 attention_mask=attention_mask,
             )
-
         outputs_mv, outputs_s = self.linear_out(h_mv, scalars=h_s)
+        # outputs_mv = h_mv
+        # outputs_s = h_s
 
         return outputs_mv, outputs_s
 
@@ -205,5 +208,15 @@ class GATr(nn.Module):
         else:
             assert scalars is not None
             additional_qk_features_s = scalars[..., self._reinsert_s_channels]
-        print("CHECKING THIS", additional_qk_features_mv, additional_qk_features_s)
+        # print("CHECKING THIS", additional_qk_features_mv, additional_qk_features_s)
         return additional_qk_features_mv, additional_qk_features_s
+
+    @staticmethod
+    def _construct_dual_reference(inputs: torch.Tensor) -> torch.Tensor:
+        """Constructs a reference vector for the equivariant join from the inputs."""
+
+        # When using torch-geometric-style batching, this code should be adapted to perform the
+        # mean over the items in each batch, but not over the batch dimension.
+        # We leave this as an exercise for the practitioner :)
+        mean_dim = tuple(range(1, len(inputs.shape) - 1))
+        return torch.mean(inputs, dim=mean_dim, keepdim=True)  # (batch, 1, ..., 1, 16)

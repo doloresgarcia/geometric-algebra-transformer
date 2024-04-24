@@ -27,7 +27,9 @@ class SelfAttention(nn.Module):
         Attention configuration.
     """
 
-    def __init__(self, basis_q, basis_k, basis_pin, config: SelfAttentionConfig) -> None:
+    def __init__(
+        self, basis_q, basis_k, basis_pin, config: SelfAttentionConfig
+    ) -> None:
         super().__init__()
 
         # Store settings
@@ -143,9 +145,9 @@ class SelfAttention(nn.Module):
 
         # # Transform linearly one more time
         outputs_mv, outputs_s = self.out_linear(h_mv, scalars=h_s)
-
         # Dropout
         if self.dropout is not None:
             outputs_mv, outputs_s = self.dropout(outputs_mv, outputs_s)
-
+        # outputs_mv = h_mv
+        # outputs_s = h_s
         return outputs_mv, outputs_s

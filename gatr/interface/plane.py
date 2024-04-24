@@ -5,10 +5,11 @@ from torch import Tensor
 
 from gatr.interface.translation import embed_translation
 from gatr.primitives.bilinear import geometric_product
+from typing import Callable, Optional, Tuple, Union
 
 
-def embed_oriented_plane(gp, 
-    normal: torch.Tensor, position: Optional[torch.Tensor] = None
+def embed_oriented_plane(
+    gp, normal: torch.Tensor, position: Optional[torch.Tensor] = None
 ) -> torch.Tensor:
     """Embeds an (oriented plane) in the PGA.
 
@@ -34,7 +35,9 @@ def embed_oriented_plane(gp,
 
     # Create multivector tensor with same batch shape, same device, same dtype as input
     batch_shape = normal.shape[:-1]
-    multivector = torch.zeros(*batch_shape, 16, dtype=normal.dtype, device=normal.device)
+    multivector = torch.zeros(
+        *batch_shape, 16, dtype=normal.dtype, device=normal.device
+    )
 
     # Embedding a plane through origin into vectors
     multivector[..., 2:5] = normal[..., :]

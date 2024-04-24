@@ -137,5 +137,4 @@ class GeometricBilinear(nn.Module):
         # Output linear
         outputs_mv = torch.cat((gp_outputs, join_outputs), dim=-2)
         outputs_mv, outputs_s = self.linear_out(outputs_mv, scalars=scalars)
-
         return outputs_mv, outputs_s

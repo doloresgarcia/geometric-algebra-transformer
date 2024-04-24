@@ -84,11 +84,7 @@ class EquiLinear(nn.Module):
         self._in_mv_channels = in_mv_channels
 
         # MV -> MV
-        self.weight = nn.Parameter(
-            torch.empty(
-                (out_mv_channels, in_mv_channels, 9)
-            )
-        )
+        self.weight = nn.Parameter(torch.empty((out_mv_channels, in_mv_channels, 9)))
 
         # We only need a separate bias here if that isn't already covered by the linear map from
         # scalar inputs
@@ -158,21 +154,25 @@ class EquiLinear(nn.Module):
         )  # (..., out_channels, 16)
 
         if self.bias is not None:
+            # print("here1")
             bias = embed_scalar(self.bias)
             outputs_mv = outputs_mv + bias
 
         if self.s2mvs is not None and scalars is not None:
-            outputs_mv[..., 0] += self.s2mvs(scalars)
+            outputs_mv[..., 0] = outputs_mv[..., 0] + self.s2mvs(scalars)
 
         if self.mvs2s is not None:
             # print(
             #     multivectors.shape, multivectors[:, 0].shape, multivectors[..., 0].shape
             # )
+            # print("here3")
             outputs_s = self.mvs2s(multivectors[..., 0])
             if self.s2s is not None and scalars is not None:
+                # print("here4")
                 outputs_s = outputs_s + self.s2s(scalars)
         else:
             outputs_s = None
+        # outputs_s = None
 
         return outputs_mv, outputs_s
 

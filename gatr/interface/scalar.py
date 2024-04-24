@@ -17,8 +17,7 @@ def embed_scalar(scalars: torch.Tensor) -> torch.Tensor:
         Multivector outputs. `multivectors[..., [0]]` is the same as `scalars`. The other components
         are zero.
     """
-
-    non_scalar_shape = list([scalars.shape[0]]) + [15]
+    non_scalar_shape = list(scalars.shape[:-1]) + [15]  # list([scalars.shape[0]])
     non_scalar_components = torch.zeros(
         non_scalar_shape, device=scalars.device, dtype=scalars.dtype
     )

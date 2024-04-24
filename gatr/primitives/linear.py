@@ -1,6 +1,6 @@
 # Copyright (c) 2023 Qualcomm Technologies, Inc.
 # All rights reserved.
-from functools import lru_cache
+# from functools import lru_cache
 
 import torch
 
@@ -134,7 +134,17 @@ def equi_linear(basis, x, coeffs) -> torch.Tensor:
     # return custom_einsum(
     #     "y x a, a i j, ... x j -> ... y i", coeffs, basis, x, path=[0, 1, 0, 1]
     # )
-    return torch.einsum("y x a, a i j, ... x j -> ... y i", coeffs, basis, x)
+    # print(coeffs.shape, basis.shape, x.shape)
+    c2 = torch.einsum("y x a, a i j ->  y x i j ", coeffs, basis)
+    a2 = torch.einsum("y x i j , l x j -> l y i", c2, x)
+
+    # x_ = x.unsqueeze(1).unsqueeze(1)
+    # c2_ = torch.permute(c2,(0,2,1,3)).unsqueeze(0)
+    # x_ = torch.mul(x_, c2_)
+    # x_ = torch.sum(x_, dim=-1)
+    # x_ = torch.sum(x_, dim=-1)
+
+    return a2  # torch.einsum("y x a, a i j, ... x j -> ... y i", coeffs, basis, x)
 
 
 def grade_project(x: torch.Tensor) -> torch.Tensor:

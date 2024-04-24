@@ -24,12 +24,12 @@ class ScalarGatedNonlinearity(nn.Module):
     def __init__(self, nonlinearity: str = "relu", **kwargs) -> None:
         super().__init__()
 
-        gated_fn_dict = dict(relu=gated_relu, gelu=gated_gelu, sigmoid=gated_sigmoid)
-        scalar_fn_dict = dict(
-            relu=nn.functional.relu,
-            gelu=nn.functional.gelu,
-            sigmoid=nn.functional.sigmoid,
-        )
+        # gated_fn_dict = dict(relu=gated_relu, gelu=gated_gelu, sigmoid=gated_sigmoid)
+        # scalar_fn_dict = dict(
+        #     relu=nn.functional.relu,
+        #     gelu=nn.functional.gelu,
+        #     sigmoid=nn.functional.sigmoid,
+        # )
         # try:
         self.gated_nonlinearity = gated_relu  # gated_fn_dict[nonlinearity]
         self.scalar_nonlinearity = nn.functional.relu  # scalar_fn_dict[nonlinearity]
@@ -60,12 +60,7 @@ class ScalarGatedNonlinearity(nn.Module):
             Output scalars
         """
 
-        gates = torch.index_select(
-            multivectors, -1, torch.Tensor([0]).long()
-        )  # multivectors[..., [0]]
+        gates = torch.index_select(multivectors, -1, torch.Tensor([0]).long())
         outputs_mv = self.gated_nonlinearity(multivectors, gates=gates)
-
-        # outputs_s = self.scalar_nonlinearity(scalars)
-        outputs_s = torch.zeros((10, 128))
-        # print(outputs_mv.shape, outputs_s.shape)
+        outputs_s = self.scalar_nonlinearity(scalars)
         return outputs_mv, outputs_s

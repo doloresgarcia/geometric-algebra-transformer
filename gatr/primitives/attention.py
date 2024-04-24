@@ -15,7 +15,8 @@ from xformers.ops import AttentionBias, memory_efficient_attention
 from gatr.primitives.dual import join_norm
 from gatr.primitives.invariants import inner_product
 from gatr.utils.einsum import cached_einsum
-from gatr.utils.misc import minimum_autocast_precision
+
+# from src.gatr.utils.misc import minimum_autocast_precision
 from gatr.utils.tensors import expand_pairwise, to_nd
 
 # When computing the normalization factor in attention weights, multivectors contribute with the
@@ -271,8 +272,17 @@ def _build_dist_vec(
     outputs : Tensor
         Batch of 5D vectors
     """
-    tri_normed = tri * normalizer(tri[..., [3]])
-    vec = torch.einsum("xyz,...x,...y->...z", basis, tri_normed, tri_normed)
+    # print(tri.shape, basis.shape, normalizer(tri[..., [3]]).shape)
+    tri_ = torch.index_select(
+        tri,
+        -1,
+        torch.Tensor([3]).long(),
+    )
+    tri_normed = tri * normalizer(tri_)
+    # vec = torch.einsum("xyz,abcdx,abcdy->abcdz", basis, tri_normed, tri_normed)
+    vec = torch.einsum("xyz,abcdx->abcdyz", basis, tri_normed)
+    vec = torch.einsum("abcdyz,abcdy->abcdz", vec, tri_normed)
+    # vec = torch.einsum("xyz,...x,...y->...z", basis, tri_normed, tri_normed)
     return vec
 
 
@@ -382,8 +392,8 @@ class geometric_attention(nn.Module):
         num_mv_channels_qk = q_mv.shape[-2]
         num_s_channels_qk = q_s.shape[-1]
 
-        q_tri = q_mv[..., self._TRIVECTOR_IDX]
-        k_tri = k_mv[..., self._TRIVECTOR_IDX]
+        q_tri = torch.index_select(q_mv, -1, torch.Tensor(self._TRIVECTOR_IDX).long())
+        k_tri = torch.index_select(k_mv, -1, torch.Tensor(self._TRIVECTOR_IDX).long())
 
         q_dist = _build_dist_vec(q_tri, self.basis_q, normalizer)
         k_dist = _build_dist_vec(k_tri, self.basis_k, normalizer)
@@ -505,6 +515,7 @@ def scaled_dot_product_attention(
         of shape [batch, head, item, d]
     """
     # if FORCE_XFORMERS or isinstance(attn_mask, AttentionBias):
+    #     print(attn_mask)
     #     query = query.transpose(
     #         1, 2
     #     )  # [batch, head, item, d] -> [batch, item, head, d]
